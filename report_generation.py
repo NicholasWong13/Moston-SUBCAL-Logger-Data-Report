@@ -3,7 +3,7 @@ import re
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
-from smbclient import ClientConfig, listdir, open_file
+from smb.SMBConnection import SMBConnection
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image
@@ -63,33 +63,33 @@ def generate_pdf_report():
     password = 'All4g00d'
     file_pattern = r'Cal_Logger_ACPF-9069-AP1_EIS.*\.csv'
 
-    # Register the server with credentials
-    ClientConfig(username=username, password=password)
-
     pdf_file_path = 'CSV_Data_Graphs_Report.pdf'
     elements = []
     
     for server_ip in server_ip_list:
-        # Construct the full path to the directory for the current server
-        full_directory_path = f"\\\\{server_ip}\\{share_name}\\{path_to_directory}"
-        
+        # Setup SMB Connection
+        conn = SMBConnection(username, password, "client_name", "remote_name", use_ntlm_v2=True)
+        conn.connect(server_ip, 139)
+
         try:
             # List all files in the directory
-            files = listdir(full_directory_path)
+            files = conn.listPath(share_name, path_to_directory)
             
             # Filter files matching the pattern
-            matched_files = [f for f in files if re.match(file_pattern, f)]
+            matched_files = [f.filename for f in files if re.match(file_pattern, f.filename)]
             
             if matched_files:
                 # Sort matched files by name or modify as needed to select the most recent file
                 matched_files.sort()
                 for file_name in matched_files:
-                    full_file_path = f"{full_directory_path}\\{file_name}"
+                    full_file_path = f"{path_to_directory}/{file_name}"
                     
                     try:
-                        # Open the file via smbclient and read its content
-                        with open_file(full_file_path, mode='r', encoding='utf-8') as file:
-                            csv_data = pd.read_csv(io.StringIO(file.read()))
+                        # Open the file via SMBConnection and read its content
+                        file_obj = io.BytesIO()
+                        conn.retrieveFile(share_name, full_file_path, file_obj)
+                        file_obj.seek(0)
+                        csv_data = pd.read_csv(io.StringIO(file_obj.read().decode('utf-8')))
                         
                         # Create individual report section
                         create_individual_report(csv_data, file_name, elements)
