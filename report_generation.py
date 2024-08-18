@@ -1,16 +1,13 @@
-import smbclient
-import pandas as pd
 import io
 import re
+import os
+import pandas as pd
 import matplotlib.pyplot as plt
+from smbclient import ClientConfig, listdir, open_file
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image
 from reportlab.lib.styles import getSampleStyleSheet
-from smbprotocol.exceptions import SMBException
-
-# Your original code goes here
-# Make sure to modularize it into functions
 
 def create_individual_report(csv_data, file_name, elements):
     # Normalize column names
@@ -46,33 +43,39 @@ def create_individual_report(csv_data, file_name, elements):
         elements.append(Paragraph(f"Records Over Time (File: {file_name})", styles['Heading2']))
         elements.append(Image(graph_image_path, width=7.5 * inch, height=4.25 * inch))
         elements.append(Spacer(1, 12))
+        
+        # Clean up temporary image file
+        if os.path.exists(graph_image_path):
+            os.remove(graph_image_path)
     
     elements.append(PageBreak())
 
 def generate_pdf_report():
-    server_ip_list = ['172.16.7.8', '172.16.7.17', '172.16.7.73', '172.16.7.16', '172.16.7.111', 
-                 '172.16.7.237', '172.16.8.210', '172.16.8.16', '172.16.7.96', '172.16.7.246', 
-                 '172.16.8.84', '172.16.7.218', '172.16.7.26', '172.16.23.11', '172.16.22.164', 
-                 '172.16.22.55', '172.16.22.242']
+    server_ip_list = [
+        '172.16.7.8', '172.16.7.17', '172.16.7.73', '172.16.7.16', '172.16.7.111', 
+        '172.16.7.237', '172.16.8.210', '172.16.8.16', '172.16.7.96', '172.16.7.246', 
+        '172.16.8.84', '172.16.7.218', '172.16.7.26', '172.16.23.11', '172.16.22.164', 
+        '172.16.22.55', '172.16.22.242'
+    ]
     share_name = 'Avago.ATF.Common.x64'
-    path_to_directory = '\\SubCal.Logger\\'
+    path_to_directory = 'SubCal.Logger'
     username = 'Admin'
     password = 'All4g00d'
     file_pattern = r'Cal_Logger_ACPF-9069-AP1_EIS.*\.csv'
 
     # Register the server with credentials
-    smbclient.ClientConfig(username=username, password=password)
+    ClientConfig(username=username, password=password)
 
     pdf_file_path = 'CSV_Data_Graphs_Report.pdf'
     elements = []
     
     for server_ip in server_ip_list:
         # Construct the full path to the directory for the current server
-        full_directory_path = f"\\\\{server_ip}\\{share_name}{path_to_directory}"
+        full_directory_path = f"\\\\{server_ip}\\{share_name}\\{path_to_directory}"
         
         try:
             # List all files in the directory
-            files = smbclient.listdir(full_directory_path)
+            files = listdir(full_directory_path)
             
             # Filter files matching the pattern
             matched_files = [f for f in files if re.match(file_pattern, f)]
@@ -83,17 +86,18 @@ def generate_pdf_report():
                 for file_name in matched_files:
                     full_file_path = f"{full_directory_path}\\{file_name}"
                     
-                    # Open the file via smbclient and read its content
-                    with smbclient.open_file(full_file_path, mode='r', encoding='utf-8') as file:
-                        csv_data = pd.read_csv(io.StringIO(file.read()))
-                    
-                    # Create individual report section
-                    create_individual_report(csv_data, file_name, elements)
+                    try:
+                        # Open the file via smbclient and read its content
+                        with open_file(full_file_path, mode='r', encoding='utf-8') as file:
+                            csv_data = pd.read_csv(io.StringIO(file.read()))
+                        
+                        # Create individual report section
+                        create_individual_report(csv_data, file_name, elements)
+                    except Exception as e:
+                        print(f"Error reading file {full_file_path}: {e}")
 
-        except SMBException as smb_e:
-            print(f"SMB error accessing directory {full_directory_path}: {smb_e}")
         except Exception as e:
-            print(f"General error accessing directory {full_directory_path}: {e}")
+            print(f"Error accessing directory {full_directory_path}: {e}")
     
     if elements:
         # Create the PDF document
