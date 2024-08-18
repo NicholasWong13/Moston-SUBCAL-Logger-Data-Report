@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Moston SUBCAL Logger Data Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        h1 {
+            color: #1F497D;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 1px 1px 2px #aaa;
+        }
+        button {
+            font-size: 18px;
+            padding: 12px 25px;
+            background-color: #1F497D;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #163a60;
+        }
+        p#status {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #555;
+        }
+        footer {
+            position: absolute;
+            bottom: 10px;
+            text-align: center;
+            width: 100%;
+            font-size: 0.9em;
+            color: #777;
+        }
+        footer a {
+            color: #1F497D;
+            text-decoration: none;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Generate Moston SUBCAL Logger Data Report</h1>
+    <button onclick="generateReport()">Generate Report</button>
+    <p id="status"></p>
+
+    <footer>
+        Developed by <a href="mailto:nicholas.wong@inari-amertron.com.my">Nicholas Wong</a>
+    </footer>
+
+    <script>
+        function generateReport() {
+            document.getElementById('status').innerText = "Generating report, please wait...";
+            fetch('/generate-report', {method: 'POST'})
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    } else {
+                        return response.json().then(err => {throw new Error(err.message)});
+                    }
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'CSV_Data_Graphs_Report.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.getElementById('status').innerText = "Report downloaded successfully.";
+                })
+                .catch(error => {
+                    document.getElementById('status').innerText = "Error: " + error.message;
+                });
+        }
+    </script>
+</body>
+</html>
